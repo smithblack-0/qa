@@ -2,17 +2,16 @@ import json
 import pathlib
 from typing import List, Dict
 
-from lib import chunklib
-from lib import pipelinelib as pipelib
-from config import squad_chunking
+
+from QA_Source.lib import chunklib
+from QA_Source.lib import pipelinelib as pipelib
+from QA_Source.config import squad_chunking
 
 
 class Loader(chunklib.AbstractLoader):
     """
-
     This defines how to get the name, instances, and lengths
     out of a file.
-
     """
 
     def __init__(self):

@@ -283,42 +283,74 @@ class HashEmbedding(nn.Module):
             word_embedding = torch.cat([word_embedding, importance_weight.squeeze(-2)], dim=-1)
         return word_embedding
 
+class LocalRelations(nn.Module):
+    """
+    Handles the creation of local relationships.
+    """
+
 
 class Embedding(nn.Module):
     """
 
     The embedding details. Includes the hash embeddings,
     several local operations, and the dimensional reduction.
+    It is designed to work with character level embeddings
+
+    It consists of three sections. These are the hashembedding,
+    the local relations, and the reduction section. The
+    hashembedding is what it sounds like, and produces
+    the initial embedding. After this, a sequence of local
+    transformer operations occur to capture relationships between
+    individual characters. Finally, a Conv is used to reduce the
+    problem down to molecules
 
     """
     def __init__(self,
-                 #Relations Processing.
-                 embedding_dim: int,
-                 reduction: int,
-                 num_local: int,
-                 kernel_width: int,
-                 dilations: List[int],
-                 activate: bool,
+                 char_embed_dim: int,
+                 num_layers: int,
+                 local_kernel: int,
+                 local_dilations: List[int],
+                 reduction_kernel: int,
+                 reduction_slowdown: int,
 
-                 #Hash embedding parameters
                  num_embeddings: int,
-                 hash_dim: int,
                  num_buckets: int,
                  num_hashes: int,
                  seed: int,
-
-
                  ):
+        """
+
+        :param char_embed_dim: How wide each character's embedding should be
+        :param num_layers: How many local layers should be
+        :param local_kernel: How wide each local transformer kernel should be
+        :param local_dilations: A list of the dilations to use with the local kernel
+        :param reduction_kernel: How wide the reduction kernel should cover
+        :param reduction_slowdown: By what multiple should the kernel be divided by. This then gives the stride
+            rate
+
+        :param num_embeddings: How many different embeddings to use
+        :param num_buckets: How many different buckets to use
+        :param num_hashes: How many different hashes to use
+        :param seed: The RNG seed.
+        """
+
         super().__init__()
 
-        embed_pipeline = []
-        embed_pipeline.append(HashEmbedding(num_embeddings, hash_dim, num_buckets, num_hashes, seed=seed))
-        for _ in range(num_local):
-            embed_pipeline.append(supertransformerlib.Attention.LCSA(hash_dim, kernel_width, dilations))
-            if activate:
-                embed_pipeline.append(nn.ReLU())
+        assert reduction_kernel % reduction_slowdown == 0
 
+        reduction_stride = reduction_kernel//reduction_slowdown
 
-
+        self.embedding = HashEmbedding(num_embeddings, char_embed_dim, num_buckets, num_hashes, seed)
+        interactions_pipe = []
+        for _ in range(num_layers):
+            interactions_pipe.append(supertransformerlib.Attention.LCSA(char_embed_dim, local_kernel, local_dilations))
+            interactions_pipe.append(nn.ReLU())
+        self.local = nn.Sequential(interactions_pipe)
+        self.reduce = nn.Conv1d(char_embed_dim, reduction_stride*char_embed_dim, reduction_kernel, reduction_stride
+    def forward(self, tensor: torch.Tensor):
+        tensor = self.embedding(tensor)
+        tensor = self.local(tensor)
+        tensor = self.reduce(tensor)
+        return tensor
 
 

@@ -1,8 +1,11 @@
-from Model import embedding
-import torch
+#%%
+from fastai.text.all import get_text_files
+import datasets
 
-hashembed = embedding.HashEmbedding(10, 64, 10, 4)
+#Update it to be more suitable to the particular application using more training.
 
-tensor = torch.randint(0, 20, [10, 64])
-print(tensor.shape)
-print(hashembed(tensor))
+#Make sure to use
+
+src = r'C:\Users\chris\PycharmProjects\qa\Data\lambada-dataset\train-novels'
+files = get_text_files(src)
+datasets.load_dataset(src, '.txt', data_files=files )

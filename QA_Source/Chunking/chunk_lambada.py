@@ -4,10 +4,10 @@ import pathlib
 import unicodedata
 from typing import List, Dict
 
-from lib import chunklib
-from lib.chunklib import ChunkConfig
-from config import lambada_pretrain_chunking
-from config import lambada_main_chunking
+from QA_Source.lib import chunklib
+from QA_Source.lib.chunklib import ChunkConfig
+from QA_Source.config import lambada_pretrain_chunking
+from QA_Source.config import lambada_main_chunking
 from multiprocessing import spawn
 
 class Pretrain_Loader(chunklib.AbstractLoader):

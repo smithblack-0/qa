@@ -1,30 +1,27 @@
 """
 
-#Chunking
+Chunklib
 
-
-I chunk the source file. The results are placed in the chunk directory,
-in three locations. There is a test folder, a validation folder, and
-a train folder.
-
-In order to use the library, one must do a few things. First, import ChunkConfig
-and develop an appropriate configuration for your system. Second,
+The chunklib is a libarary oriented towards premangling of text
+and nlp files. It is designed to enable, particularly, the division
+of large files into much smaller ones.
 
 """
+from __future__ import annotations
+from collections import namedtuple
 from typing import List, Optional, Dict
+from filesplit.split import Split
 
 import numpy as np
 import unicodedata
 import re
 import os
 import pathlib
-import random
-import multiprocessing
-import lib.pipelinelib as pipelib
-import json
-
+import QA_Source.lib.pipelinelib as pipelib
+import filesplit
 ###
 
+Chunk = namedtuple('Chunk', ['Chunk', 'Name', 'Length'])
 
 
 ### Config stuff
@@ -41,7 +38,7 @@ class AbstractLoader():
     #
     def __init__(self):
         pass
-    def load_chunks_from_file(self, path, config)-> List[Dict[str, str]]:
+    def load_chunks_from_file(self, path, config: ChunkConfig)-> List[Chunk]:
         """
 
         The "to_chunks" method accepts a
@@ -64,7 +61,7 @@ class AbstractLoader():
         :return:
         """
         raise NotImplementedError("load_chunks_from_file is not implimented")
-    def __call__(self, file, config):
+    def __call__(self, file, config: ChunkConfig):
         return self.load_chunks_from_file(file, config)
 
 class AbstractSaver():
@@ -73,10 +70,11 @@ class AbstractSaver():
     will take in a list of examples in a
     manifest, data format and must then save it somewhere
     """
-    def save_file(self, path, data, config):
+    def save_file(self, path, data: List[Chunk], config: ChunkConfig):
         raise NotImplementedError("Save chunks must be implimented")
-    def __call__(self, path, data, config):
+    def __call__(self, path, data: List[Chunk], config: ChunkConfig):
         return self.save_file(path, data, config)
+
 
 
 class ChunkConfig():
@@ -107,12 +105,6 @@ class ChunkConfig():
     def destination_dir(self) -> str:
         return self._destination_dir
     @property
-    def destination_names(self) -> List[str]:
-        return self._destination_names
-    @property
-    def destination_splits(self) -> List[int]:
-        return self._destination_splits
-    @property
     def max_file_length(self) -> int:
         return self._max_file_length
     @property
@@ -122,21 +114,11 @@ class ChunkConfig():
     def exclude(self) -> Optional[List[str]]:
         return self._exclude
     @property
-    def loader(self) -> AbstractLoader:
-        return self._loader
-    @property
-    def saver(self) -> AbstractSaver:
-        return self._saver
-    @property
     def kwargs(self):
         return self._kwargs
     def __init__(self,
                  source_dir: str,
                  destination_dir: str,
-                 destination_names: List[str],
-                 destination_splits: List[int],
-                 loader: AbstractLoader,
-                 saver: AbstractSaver,
                  max_file_length: int = 2**16,
                  include: Optional[List[str]] = None,
                  exclude: Optional[List[str]] = None,
@@ -144,13 +126,9 @@ class ChunkConfig():
                  ):
         self._source_dir = source_dir
         self._destination_dir = destination_dir
-        self._destination_names = destination_names
-        self._destination_splits = destination_splits
         self._max_file_length = max_file_length
         self._include = include
         self._exclude = exclude
-        self._loader = loader
-        self._saver = saver
         self._kwargs = kwargs
 
 
@@ -256,14 +234,17 @@ def setup_directory(path):
         file_path = path.joinpath(file)
         os.remove(file_path)
 
-def _chunk(transfer_dict):
-
-    file_paths = transfer_dict['files']
-    config = transfer_dict['config']
 
 
+def chunk(source_dir,
+          destination_dir,
+          max_file_length,
+          include = None,
+          exclude = None,
+          ):
 
-def chunk(config: ChunkConfig):
+
+
     """
 
     Responsible for actually making the chunks. Pass it
@@ -275,80 +256,11 @@ def chunk(config: ChunkConfig):
     :param config: The config for the chunk
     :return:
     """
-    file_paths = get_files(config.source_dir, config.include, config.exclude)
-    loader = config.loader
-    saver = config.saver
-    max_file_length = config.max_file_length
-    destinations = [config.destination_dir + "\\" + name for name in config.destination_names]
-    splitweights = config.destination_splits
 
-    def save_chunks(chunks, file_counts):
-        """
-
-        Saves chunks between files according to splits.
-
-        :param chunks: The chunks to be saved
-        :return: chunk_counts
-        """
-
-        dir_chunks = split_list_by_weights(chunks, splitweights)
-        for i, chunkset in enumerate(dir_chunks):
-            save_dir = destinations[i]
-            save_name = config.destination_names[i]
-            length = 0
-            examples = []
-            for chunk in chunkset:
-                # Get length of string content
-                lengths = []
-
-                def fetch_length(item):
-                    lengths.append(len(item))
-
-                pipelib.map_across_strings(chunk['data'], fetch_length)
-                length += sum(lengths)
-
-                # Append. Save if time
-                examples.append(chunk)
-                if length > max_file_length:
-                    file_location = save_dir + "\\" + save_name + "chunk" + str(file_counts[i])
-
-                    # Save data
-                    file_counts[i] += 1
-                    saver(file_location, examples, config)
-
-                    # Reset bins
-                    length = 0
-                    examples = []
-            # Finish up
-
-
-
-            file_location = save_dir + "\\" + save_name + "chunk" + str(file_counts[i])
-            file_counts[i] += 1
-            saver(file_location, examples, config)
-
-    # Prepare the destination directories. Create target char length
-    for directory in destinations:
-        setup_directory(directory)
-
-    char_length_target = max_file_length * sum(splitweights)
-
-    # Get, and split up, the data from the source directory.
-    file_counts = [0] * len(destinations)
-    chunks = []
-    disc_pointers = []
-    length = 0
+    file_paths = get_files(source_dir, include, exclude)
+    max_file_length = max_file_length
+    destination = destination_dir
+    setup_directory(destination)
     for file in file_paths:
-        # Get chunks
-        new_chunks = loader(file, config)
-        new_pointers = [{'path': file, 'chunk': i} for i in range(len(new_chunks))]
-        chunks = chunks + new_chunks
-        disc_pointers = disc_pointers + new_pointers
-        length += sum([example["length"] for example in new_chunks])
-        # Save if appropriate, and update cache
-        if length > char_length_target:
-            save_chunks(chunks, file_counts)
-            chunks = []
-            length = 0
-    # Finish
-    save_chunks(chunks, file_counts)
+        splitrep = Split(str(file), outputdir=destination)
+        splitrep.bysize(max_file_length, True, True)

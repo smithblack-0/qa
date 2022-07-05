@@ -1,14 +1,26 @@
-import enum
-import copy
-from collections import namedtuple
-from typing import Optional, List
-from lib.chunklib import ChunkConfig
+from transformers import PretrainedConfig
+
+class QAConfig(PretrainedConfig):
+    """
+    This is the configuration class
+    for my model.
+    """
+    def __init__(self,
+
+
+
+
+
+                 ):
+        super().__init__()
+
+
 
 ## Chunk declarations ##
 
 lambada_pretrain_chunking = {
-    'source_dir': r'C:\Users\chris\PycharmProjects\fastai\Data\lambada-dataset\train-novels',
-    'destination_dir': r'C:\Users\chris\PycharmProjects\fastai\Chunks\Lambada',
+    'source_dir': r'C:\Users\chris\PycharmProjects\qa\Data\lambada-dataset\train-novels',
+    'destination_dir': r'..\..\Chunks\Lambada',
     'destination_names': ["Pretrain"],
     'destination_splits': [1],
     'max_example_length' : 5000,
@@ -16,8 +28,8 @@ lambada_pretrain_chunking = {
 }
 
 lambada_main_chunking = {
-    'source_dir' : r'C:\Users\chris\PycharmProjects\fastai\Data\lambada-dataset',
-    'destination_dir': r'C:\Users\chris\PycharmProjects\fastai\Chunks\Lambada',
+    'source_dir' : r'C:\Users\chris\PycharmProjects\qa\Data\lambada-dataset',
+    'destination_dir': r'..\..\Chunks\Lambada',
     'destination_names' : ["Train", "Test", "Validation"],
     'destination_splits' : [100, 1, 1],
     'include' : ['lambada_control_test_data_plain_text.txt',
